@@ -1,4 +1,5 @@
-﻿using eShopSolution.ViewModels.Catalog.Products;
+﻿using eShopSolution.Data.Entities;
+using eShopSolution.ViewModels.Catalog.Products;
 using eShopSolution.ViewModels.Common;
 using Microsoft.AspNetCore.Http;
 using System;
@@ -16,6 +17,8 @@ namespace eShopSolution.Application.Catalog.Products
         Task<int> Update(ProductUpdateRequest request);
 
         Task<int> Delete(int productId);
+
+        Task<ProductViewModel> GetById(int productId, string languageId);
 
         Task<bool> UpdatePrice(int productId, decimal newPrice);
 
