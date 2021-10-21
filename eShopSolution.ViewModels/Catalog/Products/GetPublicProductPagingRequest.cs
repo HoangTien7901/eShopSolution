@@ -1,10 +1,9 @@
 ﻿using eShopSolution.ViewModels.Common;
 
-namespace eShopSolution.ViewModels.Catalog.Products
+namespace eShopSolution.ViewModels.Catalog.ProductImages
 {
     public class GetPublicProductPagingRequest : PagingRequestBase
     {
-        public string LanguageId { get; set; }
         public int? CategoryId { get; set; }
     }
 }

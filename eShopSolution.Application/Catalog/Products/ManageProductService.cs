@@ -2,7 +2,7 @@
 using eShopSolution.Data.EF;
 using eShopSolution.Data.Entities;
 using eShopSolution.Utilities.Exceptions;
-using eShopSolution.ViewModels.Catalog.Products;
+using eShopSolution.ViewModels.Catalog.ProductImages;
 using eShopSolution.ViewModels.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -20,33 +20,32 @@ namespace eShopSolution.Application.Catalog.Products
     {
         private readonly EShopDBContext _context;
         private readonly IStorageService _storageService;
+
         public ManageProductService(EShopDBContext context, IStorageService storageService)
         {
             _context = context;
             _storageService = storageService;
         }
 
-        public async Task<int> AddImages(int productId, List<IFormFile> files)
+        public async Task<int> AddImage(int productId, ProductImageCreateRequest request)
         {
-            var product = await _context.Products.FindAsync(productId);
-            foreach(var file in files)
+            var productImage = new ProductImage()
             {
-                if (file != null)
-                {
-                    product.ProductImages = new List<ProductImage>()
-                {
-                    new ProductImage()
-                    {
-                        Caption = "Thumbnail image",
-                        DateCreated = DateTime.Now,
-                        FileSize = file.Length,
-                        ImagePath = await this.SaveFile(file),
-                    }
-                };
-                }
+                Caption = request.Caption,
+                DateCreated = DateTime.Now,
+                IsDefault = request.IsDefault,
+                ProductId = productId,
+                SortOrder = request.SortOrder
+            };
+            if (request.ImageFile != null)
+            {
+                productImage.ImagePath = await this.SaveFile(request.ImageFile);
+                productImage.FileSize = request.ImageFile.Length;
             }
-            _context.Products.Update(product);
-            return await _context.SaveChangesAsync();
+
+            _context.ProductImages.Add(productImage);
+            await _context.SaveChangesAsync();
+            return productImage.Id;
         }
 
         public async Task AddViewCount(int productId)
@@ -80,7 +79,7 @@ namespace eShopSolution.Application.Catalog.Products
                 }
             };
             //Save Image
-            if(request.ThumbnailImage != null)
+            if (request.ThumbnailImage != null)
             {
                 product.ProductImages = new List<ProductImage>()
                 {
@@ -106,7 +105,7 @@ namespace eShopSolution.Application.Catalog.Products
             if (product == null) throw new EShopException($"Cannot find a product: {productId}");
             //Delete Image
             var images = await _context.ProductImages.Where(i => i.ProductId == product.Id).ToListAsync();
-            foreach(var image in images)
+            foreach (var image in images)
             {
                 if (image != null)
                 {
@@ -135,7 +134,7 @@ namespace eShopSolution.Application.Catalog.Products
             int totalRow = await query.CountAsync();
             var data = await query.Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .Select(x => new ProductViewModel() 
+                .Select(x => new ProductViewModel()
                 {
                     Id = x.p.Id,
                     Name = x.pt.Name,
@@ -149,7 +148,7 @@ namespace eShopSolution.Application.Catalog.Products
                     SeoDescription = x.pt.SeoDescription,
                     SeoTitle = x.pt.SeoTitle,
                     Stock = x.p.Stock,
-                    ViewCount = x.p.ViewCount                    
+                    ViewCount = x.p.ViewCount
                 }).ToListAsync();
             //4. Select and projection
 
@@ -159,7 +158,6 @@ namespace eShopSolution.Application.Catalog.Products
                 Items = data
             };
             return pageResult;
-
         }
 
         public async Task<ProductViewModel> GetById(int productId, string languageId)
@@ -186,17 +184,47 @@ namespace eShopSolution.Application.Catalog.Products
             return productViewModel;
         }
 
-        public Task<List<ProductImageViewModel>> GetlistImage(int productId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public async Task<int> RemoveImages(int imageId)
+        public async Task<ProductImageViewModel> GetImageById(int imageId)
         {
             var image = await _context.ProductImages.FindAsync(imageId);
-            if (image != null) {
-                _context.ProductImages.Remove(image);
-            }             
+            if (image == null) throw new EShopException($"Cannot find an image with id {imageId}");
+
+            return new ProductImageViewModel()
+            {
+                Id = image.Id,
+                Caption = image.Caption,
+                DateCreated = image.DateCreated,
+                FileSize = image.FileSize,
+                ImagePath = image.ImagePath,
+                IsDefault = image.IsDefault,
+                ProductId = image.ProductId,
+                SortOrder = image.SortOrder
+            };
+        }
+
+        public async Task<List<ProductImageViewModel>> GetlistImages(int productId)
+        {
+            return await _context.ProductImages.Where(x => x.ProductId == productId)
+                .Select(i => new ProductImageViewModel()
+                {
+                    Id = i.Id,
+                    Caption = i.Caption,
+                    DateCreated = i.DateCreated,
+                    FileSize = i.FileSize,
+                    ImagePath = i.ImagePath,
+                    IsDefault = i.IsDefault,
+                    ProductId = i.ProductId,
+                    SortOrder = i.SortOrder
+                }).ToListAsync();
+        }
+
+        public async Task<int> RemoveImage(int imageId)
+        {
+            var productImage = await _context.ProductImages.FindAsync(imageId);
+            if (productImage == null)
+                throw new EShopException($"Cannot find an image with id {imageId}");
+
+            _context.ProductImages.Remove(productImage);
             return await _context.SaveChangesAsync();
         }
 
@@ -205,7 +233,7 @@ namespace eShopSolution.Application.Catalog.Products
             var product = await _context.Products.FindAsync(request.Id);
             var productTranslation = await _context.ProductTranslations.FirstOrDefaultAsync(x => x.LanguageId == request.LanguageId && x.ProductId == request.Id);
 
-            if(product == null || productTranslation == null) throw new EShopException($"Cannot find a product with Id: {request.Id}");
+            if (product == null || productTranslation == null) throw new EShopException($"Cannot find a product with Id: {request.Id}");
 
             productTranslation.Name = request.Name;
             productTranslation.SeoAlias = request.SeoAlias;
@@ -217,7 +245,7 @@ namespace eShopSolution.Application.Catalog.Products
             if (request.ThumbnailImage != null)
             {
                 var thumbnailImage = _context.ProductImages.FirstOrDefault(i => i.IsDefault == true && i.ProductId == product.Id);
-                if(thumbnailImage != null)
+                if (thumbnailImage != null)
                 {
                     thumbnailImage.FileSize = request.ThumbnailImage.Length;
                     thumbnailImage.ImagePath = await this.SaveFile(request.ThumbnailImage);
@@ -225,25 +253,28 @@ namespace eShopSolution.Application.Catalog.Products
                 }
             }
             return await _context.SaveChangesAsync();
-
         }
 
-        public async Task<int> UpdateImages(int imageId, string caption, bool isDefault)
+        public async Task<int> UpdateImage(int imageId, ProductImageUpdateRequest request)
         {
-            var image = await _context.ProductImages.FindAsync(imageId);
-            if(image != null)
+            var productImage = await _context.ProductImages.FindAsync(imageId);
+            if (productImage == null)
+                throw new EShopException($"Cannot find an image with id {imageId}");
+
+            if (request.ImageFile != null)
             {
-                image.Caption = caption;
-                image.IsDefault = isDefault;
-                _context.ProductImages.Update(image);
+                productImage.ImagePath = await this.SaveFile(request.ImageFile);
+                productImage.FileSize = request.ImageFile.Length;
             }
+
+            _context.ProductImages.Update(productImage);
             return await _context.SaveChangesAsync();
         }
 
         public async Task<bool> UpdatePrice(int productId, decimal newPrice)
         {
-            var product = await _context.Products.FindAsync(productId);            
-            if(product == null) throw new EShopException($"Cannot find a product with Id: {productId}");
+            var product = await _context.Products.FindAsync(productId);
+            if (product == null) throw new EShopException($"Cannot find a product with Id: {productId}");
             product.Price = newPrice;
             return await _context.SaveChangesAsync() > 0;
         }

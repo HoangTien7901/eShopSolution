@@ -1,5 +1,5 @@
 ﻿using eShopSolution.Data.EF;
-using eShopSolution.ViewModels.Catalog.Products;
+using eShopSolution.ViewModels.Catalog.ProductImages;
 using eShopSolution.ViewModels.Common;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -47,14 +47,14 @@ namespace eShopSolution.Application.Catalog.Products
             return data;
         }
 
-        public async Task<PagedResult<ProductViewModel>> GetAllByCategoryId(GetPublicProductPagingRequest request)
+        public async Task<PagedResult<ProductViewModel>> GetAllByCategoryId(string languageId, GetPublicProductPagingRequest request)
         {
             // 1.Select join
             var query = from p in _context.Products
                         join pt in _context.ProductTranslations on p.Id equals pt.ProductId
                         join pic in _context.ProductInCategories on p.Id equals pic.ProductId
                         join c in _context.Categories on pic.CategoryId equals c.Id
-                        where pt.LanguageId == request.LanguageId
+                        where pt.LanguageId == languageId
                         select new { p, pt, pic };
             //2. Filter
             if (request.CategoryId.HasValue && request.CategoryId.Value > 0)
